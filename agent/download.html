@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zero Trust Agent - Download</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000;
+            color: #0f0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #0a0a0a;
+            border: 2px solid #0f0;
+            padding: 30px;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #0f0;
+            text-shadow: 0 0 10px #0f0;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+        .section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #0f0;
+            background: #050505;
+        }
+        h2 {
+            color: #0f0;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+        .download-btn {
+            display: inline-block;
+            background: #0f0;
+            color: #000;
+            padding: 15px 30px;
+            text-decoration: none;
+            font-weight: bold;
+            margin: 10px 10px 10px 0;
+            border: 2px solid #0f0;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .download-btn:hover {
+            background: #000;
+            color: #0f0;
+            box-shadow: 0 0 15px #0f0;
+        }
+        .code-box {
+            background: #000;
+            border: 1px solid #0f0;
+            padding: 15px;
+            margin: 10px 0;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+        }
+        .code-box code {
+            color: #0f0;
+        }
+        .warning {
+            color: #ff0;
+            border-color: #ff0;
+        }
+        .info {
+            color: #0ff;
+            margin: 10px 0;
+        }
+        ul {
+            margin-left: 20px;
+            margin-top: 10px;
+        }
+        li {
+            margin: 5px 0;
+        }
+        .status {
+            text-align: center;
+            padding: 10px;
+            margin: 20px 0;
+            border: 1px solid #0f0;
+        }
+        .status.online {
+            color: #0f0;
+        }
+        .copy-btn {
+            background: #000;
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 5px 10px;
+            cursor: pointer;
+            float: right;
+            font-family: 'Courier New', monospace;
+        }
+        .copy-btn:hover {
+            background: #0f0;
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ ZERO TRUST AGENT</h1>
+        
+        <div class="status online" id="status">
+            ⚡ Backend Status: Checking...
+        </div>
+
+        <div class="section">
+            <h2>📥 Quick Download</h2>
+            <a href="https://github.com/BHARGAVSAI558/zero_trust/archive/refs/heads/main.zip" class="download-btn">
+                ⬇️ Download Agent (ZIP)
+            </a>
+            <a href="https://github.com/BHARGAVSAI558/zero_trust" class="download-btn">
+                📂 View on GitHub
+            </a>
+            <p class="info">Extract ZIP → Navigate to 'agent' folder → Follow instructions below</p>
+        </div>
+
+        <div class="section">
+            <h2>🚀 One-Line Install</h2>
+            
+            <h3 style="color: #0ff; margin-top: 20px;">Windows (PowerShell)</h3>
+            <div class="code-box">
+                <button class="copy-btn" onclick="copyCode('win-code')">Copy</button>
+                <code id="win-code">curl -o install.bat https://raw.githubusercontent.com/BHARGAVSAI558/zero_trust/main/agent/install_windows.bat && install.bat</code>
+            </div>
+
+            <h3 style="color: #0ff; margin-top: 20px;">Linux/Mac (Terminal)</h3>
+            <div class="code-box">
+                <button class="copy-btn" onclick="copyCode('linux-code')">Copy</button>
+                <code id="linux-code">curl -fsSL https://raw.githubusercontent.com/BHARGAVSAI558/zero_trust/main/agent/install_linux.sh | sudo bash</code>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📋 Manual Installation</h2>
+            
+            <h3 style="color: #0ff;">Step 1: Install Python</h3>
+            <p>Download Python 3.7+ from <a href="https://www.python.org/downloads/" style="color: #0f0;">python.org</a></p>
+
+            <h3 style="color: #0ff; margin-top: 15px;">Step 2: Download Agent</h3>
+            <div class="code-box">
+                <button class="copy-btn" onclick="copyCode('git-code')">Copy</button>
+                <code id="git-code">git clone https://github.com/BHARGAVSAI558/zero_trust.git
+cd zero_trust/agent</code>
+            </div>
+
+            <h3 style="color: #0ff; margin-top: 15px;">Step 3: Install Dependencies</h3>
+            <div class="code-box">
+                <button class="copy-btn" onclick="copyCode('pip-code')">Copy</button>
+                <code id="pip-code">pip install -r requirements.txt</code>
+            </div>
+
+            <h3 style="color: #0ff; margin-top: 15px;">Step 4: Run Agent</h3>
+            <div class="code-box">
+                <button class="copy-btn" onclick="copyCode('run-code')">Copy</button>
+                <code id="run-code">python zero_trust_agent.py YOUR_USERNAME</code>
+            </div>
+            <p class="info">Replace YOUR_USERNAME with your actual username (e.g., john, sarah, bhargav)</p>
+        </div>
+
+        <div class="section">
+            <h2>📊 Access Dashboard</h2>
+            <a href="https://zer0-trust.netlify.app" class="download-btn" target="_blank">
+                🌐 Open Dashboard
+            </a>
+            <p class="info">Login with your username to view security status</p>
+            <p class="info">Admin access: admin / admin123</p>
+        </div>
+
+        <div class="section">
+            <h2>ℹ️ What Gets Installed</h2>
+            <ul>
+                <li>✅ Agent Script (50 KB)</li>
+                <li>✅ Dependencies: psutil, requests (~5 MB)</li>
+                <li>✅ Monitors: Files, Network, USB, Login times</li>
+                <li>✅ Sends data every 5 minutes to backend</li>
+            </ul>
+        </div>
+
+        <div class="section warning">
+            <h2>⚠️ System Requirements</h2>
+            <ul>
+                <li>Python 3.7 or higher</li>
+                <li>50 MB RAM</li>
+                <li>10 MB disk space</li>
+                <li>Internet connection</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>🔧 Troubleshooting</h2>
+            <p><strong>Python not found?</strong></p>
+            <p>Install from: <a href="https://www.python.org/downloads/" style="color: #0f0;">https://www.python.org/downloads/</a></p>
+            
+            <p style="margin-top: 15px;"><strong>Can't connect to backend?</strong></p>
+            <div class="code-box">
+                <code>curl https://zero-trust-3fmw.onrender.com/health</code>
+            </div>
+            <p>Should return: {"status":"healthy"}</p>
+        </div>
+
+        <div class="section">
+            <h2>📞 Support</h2>
+            <p>GitHub: <a href="https://github.com/BHARGAVSAI558/zero_trust" style="color: #0f0;">github.com/BHARGAVSAI558/zero_trust</a></p>
+            <p>Backend: <a href="https://zero-trust-3fmw.onrender.com" style="color: #0f0;">zero-trust-3fmw.onrender.com</a></p>
+            <p>Dashboard: <a href="https://zer0-trust.netlify.app" style="color: #0f0;">zer0-trust.netlify.app</a></p>
+        </div>
+    </div>
+
+    <script>
+        // Check backend status
+        fetch('https://zero-trust-3fmw.onrender.com/health')
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('status').innerHTML = '✅ Backend Status: ONLINE';
+            })
+            .catch(err => {
+                document.getElementById('status').innerHTML = '⚠️ Backend Status: OFFLINE (May be sleeping)';
+                document.getElementById('status').style.color = '#ff0';
+            });
+
+        // Copy code to clipboard
+        function copyCode(id) {
+            const code = document.getElementById(id).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                alert('Copied to clipboard!');
+            });
+        }
+    </script>
+</body>
+</html>

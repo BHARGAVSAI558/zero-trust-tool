@@ -52,36 +52,42 @@ Detects 13+ behavioral anomalies:
 ## 🏗️ Architecture
 
 ```
-┌─────────────────┐      ┌──────────────────┐      ┌─────────────┐
-│  React Frontend │─────▶│  FastAPI Backend │─────▶│   MySQL DB  │
-│  (Port 3000)    │      │   (Port 8000)    │      │             │
-└─────────────────┘      └──────────────────┘      └─────────────┘
-                                  │
-                                  ▼
-                         ┌──────────────────┐
-                         │  Python Agent    │
-                         │  (Device Monitor)│
-                         └──────────────────┘
+┌──────────────────┐
+│ Employee Machine │
+│  Python Agent    │ ← Monitors: Files, Network, USB, Login
+└────────┬─────────┘
+         │ (Every 5 min)
+         ▼
+┌──────────────────┐      ┌─────────────┐
+│  FastAPI Backend │─────▶│ PostgreSQL  │
+│  (Render.com)    │      │  Database   │
+└────────┬─────────┘      └─────────────┘
+         │
+         ▼
+┌──────────────────┐
+│  React Frontend  │
+│  (Netlify)       │ ← Admin/User Dashboard
+└──────────────────┘
 ```
 
 ### Tech Stack
 **Backend:**
 - FastAPI (Python) - High-performance API framework
-- MySQL - Relational database with connection pooling
-- JWT - Secure token-based authentication
-- SlowAPI - Rate limiting middleware
-- Bcrypt - Password hashing
+- PostgreSQL - Relational database
+- Psycopg2 - PostgreSQL adapter
+- Requests - Geolocation API
 
 **Frontend:**
 - React 19 - Modern UI framework
 - Tailwind CSS - Utility-first styling
 - Chart.js - Data visualization
-- Axios - HTTP client with interceptors
-- React Icons - Icon library
+- Axios - HTTP client
 
-**Agent:**
-- Python - Cross-platform device monitoring
-- Requests - HTTP communication
+**Agent (NEW!):**
+- Python 3.7+ - Cross-platform monitoring
+- psutil - System/process monitoring
+- requests - Backend communication
+- Runs on employee workstations 24/7
 
 ## 📊 Comparison: This System vs Microsoft ATP
 
@@ -115,31 +121,40 @@ Detects 13+ behavioral anomalies:
 
 ## 🚀 Quick Start
 
-### 1. Backend Setup
+### 1. Deploy Agent on Employee Machine
 ```bash
-cd backend
+cd agent
 pip install -r requirements.txt
-cp .env.example .env
-# Edit .env and set JWT_SECRET
-mysql -u root -p < schema.sql
-uvicorn main:app --reload
+python zero_trust_agent.py <username>
 ```
 
-### 2. Frontend Setup
+Example:
 ```bash
-cd frontend
-npm install
-npm start
+python zero_trust_agent.py bhargav
 ```
 
-### 3. Access Application
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
+The agent will:
+- Monitor file access to sensitive folders
+- Track login times and detect odd-hour access
+- Monitor network connections
+- Detect USB device connections
+- Send telemetry to backend every 5 minutes
 
-### Default Login
-- Username: `admin`
-- Password: `admin123`
+### 2. Access Dashboards
+- **Admin Dashboard**: https://zer0-trust.netlify.app (admin/admin123)
+- **User Dashboard**: Login with your username
+- **Backend API**: https://zero-trust-3fmw.onrender.com
+
+### 3. Test the System
+```bash
+cd agent
+python test_agent.py
+```
+
+This simulates:
+- Accessing sensitive files
+- Making external network connections
+- Triggering security alerts
 
 ## 📖 Documentation
 
