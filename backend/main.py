@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
@@ -22,7 +22,7 @@ app.add_middleware(
 
 # Auth endpoint
 @app.post("/auth/login")
-async def login(request: Request, username: str, password: str):
+async def login(request: Request, username: str = Form(...), password: str = Form(...)):
     try:
         db = get_db()
         cursor = db.cursor(cursor_factory=__import__('psycopg2.extras', fromlist=['RealDictCursor']).RealDictCursor)
@@ -31,7 +31,7 @@ async def login(request: Request, username: str, password: str):
         user = cursor.fetchone()
         
         success = bool(user)
-        ip = request.client.host
+        ip = request.client.host if request.client else "Unknown"
         
         cursor.execute("""
             INSERT INTO login_logs (user_id, login_time, ip_address, success, country, city)
@@ -42,7 +42,7 @@ async def login(request: Request, username: str, password: str):
         db.close()
         
         if not success:
-            return {"status": "FAIL"}
+            return {"status": "FAIL", "message": "Invalid credentials"}
         
         return {
             "status": "SUCCESS",
