@@ -1,6 +1,5 @@
 from collections import defaultdict
 from datetime import datetime, timedelta
-import numpy as np
 
 def analyze_ueba(login_logs, device_logs, file_logs):
     ueba = defaultdict(set)
