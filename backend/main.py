@@ -1,13 +1,16 @@
 from fastapi import FastAPI, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 from datetime import datetime
 import os
+import requests
 
 def get_db():
     import psycopg2
     import psycopg2.extras
-    return psycopg2.connect(os.getenv("DATABASE_URL", "postgresql://localhost/zero"))
+    db_url = os.getenv("DATABASE_URL", "postgresql://localhost/zero")
+    if db_url and not db_url.startswith("postgresql://"):
+        db_url = "postgresql://" + db_url
+    return psycopg2.connect(db_url)
 
 app = FastAPI(title="Zero Trust Security Platform")
 
@@ -24,6 +27,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def get_geolocation(ip):
+    try:
+        geo = requests.get(f"http://ip-api.com/json/{ip}", timeout=3).json()
+        if geo.get("status") == "success":
+            return geo.get("country", "Unknown"), geo.get("city", "Unknown")
+    except:
+        pass
+    return "Unknown", "Unknown"
+
 @app.post("/auth/login")
 async def login(request: Request, username: str = Form(...), password: str = Form(...)):
     try:
@@ -36,10 +48,12 @@ async def login(request: Request, username: str = Form(...), password: str = For
         success = bool(user)
         ip = request.client.host if request.client else "Unknown"
         
+        country, city = get_geolocation(ip)
+        
         cursor.execute("""
             INSERT INTO login_logs (user_id, login_time, ip_address, success, country, city)
             VALUES (%s,%s,%s,%s,%s,%s)
-        """, (username, datetime.now(), ip, success, "Unknown", "Unknown"))
+        """, (username, datetime.now(), ip, success, country, city))
         db.commit()
         cursor.close()
         db.close()
@@ -51,7 +65,7 @@ async def login(request: Request, username: str = Form(...), password: str = For
             "status": "SUCCESS",
             "user": username,
             "role": user["role"],
-            "location": "Unknown, Unknown"
+            "location": f"{city}, {country}"
         }
     except Exception as e:
         return {"status": "FAIL", "error": str(e)}
@@ -91,16 +105,50 @@ def admin_view():
 
 @app.get("/security/analyze/user/{username}")
 def user_view(username: str):
-    return {
-        "user": username,
-        "risk_score": 0,
-        "risk_level": "LOW",
-        "decision": "ALLOW",
-        "signals": [],
-        "total_logins": 0,
-        "last_login": None,
-        "accessible_resources": ["dashboard", "profile"]
-    }
+    try:
+        db = get_db()
+        cursor = db.cursor(cursor_factory=__import__('psycopg2.extras', fromlist=['RealDictCursor']).RealDictCursor)
+        
+        cursor.execute("SELECT COUNT(*) as total FROM login_logs WHERE user_id=%s", (username,))
+        total = cursor.fetchone()["total"]
+        
+        cursor.execute("SELECT * FROM login_logs WHERE user_id=%s ORDER BY login_time DESC LIMIT 1", (username,))
+        last_login = cursor.fetchone()
+        
+        cursor.execute("SELECT * FROM device_logs WHERE user_id=%s ORDER BY first_seen DESC LIMIT 1", (username,))
+        device = cursor.fetchone()
+        
+        cursor.close()
+        db.close()
+        
+        return {
+            "user": username,
+            "risk_score": 15,
+            "risk_level": "LOW",
+            "decision": "ALLOW",
+            "signals": [],
+            "total_logins": total,
+            "last_login": str(last_login["login_time"]) if last_login else None,
+            "accessible_resources": ["dashboard", "profile", "reports", "analytics"],
+            "ip_address": device["ip_address"] if device else "N/A",
+            "mac_address": device["mac_address"] if device else "N/A",
+            "wifi_ssid": device["wifi_ssid"] if device else "N/A",
+            "hostname": device["hostname"] if device else "N/A",
+            "os": device["os"] if device else "N/A",
+            "country": last_login["country"] if last_login else "Unknown",
+            "city": last_login["city"] if last_login else "Unknown"
+        }
+    except:
+        return {
+            "user": username,
+            "risk_score": 0,
+            "risk_level": "LOW",
+            "decision": "ALLOW",
+            "signals": [],
+            "total_logins": 0,
+            "last_login": None,
+            "accessible_resources": ["dashboard", "profile"]
+        }
 
 @app.post("/device/register")
 async def register_device(request: Request):
@@ -123,7 +171,16 @@ async def register_device(request: Request):
 
 @app.get("/files/list/{username}")
 def list_files(username: str):
-    return []
+    try:
+        db = get_db()
+        cursor = db.cursor(cursor_factory=__import__('psycopg2.extras', fromlist=['RealDictCursor']).RealDictCursor)
+        cursor.execute("SELECT * FROM file_access_logs WHERE user_id=%s ORDER BY access_time DESC LIMIT 50", (username,))
+        files = cursor.fetchall()
+        cursor.close()
+        db.close()
+        return files
+    except:
+        return []
 
 @app.post("/files/access")
 async def file_access(request: Request):
@@ -131,10 +188,11 @@ async def file_access(request: Request):
         data = await request.json()
         db = get_db()
         cursor = db.cursor()
+        ip = request.client.host if request.client else "Unknown"
         cursor.execute("""
             INSERT INTO file_access_logs (user_id, file_name, action, ip_address)
             VALUES (%s,%s,%s,%s)
-        """, (data.get("username"), data.get("file_name"), data.get("action"), data.get("ip_address")))
+        """, (data.get("user_id"), data.get("file_name"), data.get("action"), ip))
         db.commit()
         cursor.close()
         db.close()
@@ -151,8 +209,13 @@ def admin_files():
         files = cursor.fetchall()
         cursor.close()
         db.close()
-        return [{"user": f["user_id"], "file": f["file_name"], "action": f["action"], 
-                 "time": str(f["access_time"]), "ip": f["ip_address"]} for f in files]
+        return [{
+            "user": f["user_id"], 
+            "file": f["file_name"], 
+            "action": f["action"], 
+            "time": str(f["access_time"]), 
+            "ip": f["ip_address"]
+        } for f in files]
     except:
         return []
 

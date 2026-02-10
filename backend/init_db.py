@@ -3,7 +3,11 @@ import os
 
 def init_database():
     try:
-        conn = psycopg2.connect(os.getenv("DATABASE_URL"))
+        db_url = os.getenv("DATABASE_URL", "")
+        if db_url and not db_url.startswith("postgresql://"):
+            db_url = "postgresql://" + db_url
+        
+        conn = psycopg2.connect(db_url)
         cursor = conn.cursor()
         
         cursor.execute("""
