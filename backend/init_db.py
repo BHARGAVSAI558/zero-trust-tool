@@ -16,7 +16,10 @@ def init_database():
                 username VARCHAR(50) UNIQUE NOT NULL,
                 password VARCHAR(255) NOT NULL,
                 role VARCHAR(10) DEFAULT 'user',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                status VARCHAR(20) DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                approved_by VARCHAR(50),
+                approved_at TIMESTAMP
             )
         """)
         
@@ -59,10 +62,10 @@ def init_database():
         """)
         
         cursor.execute("""
-            INSERT INTO users (username, password, role) VALUES 
-            ('admin', 'admin123', 'admin'),
-            ('bhargav', 'admin123', 'user')
-            ON CONFLICT (username) DO NOTHING
+            INSERT INTO users (username, password, role, status) VALUES 
+            ('admin', 'admin123', 'admin', 'active'),
+            ('bhargav', 'admin123', 'user', 'active')
+            ON CONFLICT (username) DO UPDATE SET status='active'
         """)
         
         conn.commit()

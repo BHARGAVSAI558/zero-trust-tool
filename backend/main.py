@@ -31,21 +31,22 @@ app.add_middleware(
 
 def get_geolocation(ip):
     try:
-        # Get detailed location data
-        geo = requests.get(f"http://ip-api.com/json/{ip}?fields=status,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as,query", timeout=5).json()
-        if geo.get("status") == "success":
+        # Use ipapi.co for exact location
+        geo = requests.get(f"https://ipapi.co/{ip}/json/", timeout=5).json()
+        if not geo.get('error'):
             return {
-                "country": geo.get("country", "Unknown"),
+                "country": geo.get("country_name", "Unknown"),
                 "city": geo.get("city", "Unknown"),
-                "region": geo.get("regionName", "Unknown"),
-                "latitude": geo.get("lat", 0),
-                "longitude": geo.get("lon", 0),
+                "region": geo.get("region", "Unknown"),
+                "latitude": geo.get("latitude", 0),
+                "longitude": geo.get("longitude", 0),
                 "timezone": geo.get("timezone", "Unknown"),
-                "isp": geo.get("isp", "Unknown"),
-                "ip": geo.get("query", ip)
+                "isp": geo.get("org", "Unknown"),
+                "ip": geo.get("ip", ip),
+                "postal": geo.get("postal", "Unknown")
             }
-    except Exception as e:
-        print(f"Geolocation error: {e}")
+    except:
+        pass
     return {
         "country": "Unknown",
         "city": "Unknown",
@@ -54,7 +55,8 @@ def get_geolocation(ip):
         "longitude": 0,
         "timezone": "Unknown",
         "isp": "Unknown",
-        "ip": ip
+        "ip": ip,
+        "postal": "Unknown"
     }
 
 # Blockchain for audit trail
@@ -184,19 +186,19 @@ def calculate_risk_score(username, db):
     if risk_score <= 30:
         risk_level = "LOW"
         decision = "ALLOW"
-        zone = "CRITICAL"  # Can access all zones
+        zone = "CRITICAL"
     elif risk_score <= 50:
         risk_level = "MEDIUM"
         decision = "RESTRICT"
-        zone = "SENSITIVE"  # Limited to sensitive zone
+        zone = "SENSITIVE"
     elif risk_score <= 70:
         risk_level = "HIGH"
         decision = "RESTRICT"
-        zone = "INTERNAL"  # Limited to internal zone
+        zone = "INTERNAL"
     else:
         risk_level = "CRITICAL"
         decision = "DENY"
-        zone = "PUBLIC"  # Only public zone
+        zone = "PUBLIC"
     
     return {
         "risk_score": risk_score,
@@ -205,6 +207,30 @@ def calculate_risk_score(username, db):
         "zone": zone,
         "signals": signals
     }
+
+@app.post("/auth/register")
+async def register(request: Request, username: str = Form(...), password: str = Form(...)):
+    try:
+        db = get_db()
+        cursor = db.cursor()
+        
+        cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
+        if cursor.fetchone():
+            cursor.close()
+            db.close()
+            return {"status": "FAIL", "message": "Username already exists"}
+        
+        cursor.execute("""
+            INSERT INTO users (username, password, role, status)
+            VALUES (%s, %s, 'user', 'pending')
+        """, (username, password))
+        db.commit()
+        cursor.close()
+        db.close()
+        
+        return {"status": "SUCCESS", "message": "Registration pending admin approval"}
+    except Exception as e:
+        return {"status": "FAIL", "error": str(e)}
 
 @app.post("/auth/login")
 async def login(request: Request, username: str = Form(...), password: str = Form(...)):
@@ -215,35 +241,43 @@ async def login(request: Request, username: str = Form(...), password: str = For
         cursor.execute("SELECT * FROM users WHERE username=%s AND password=%s", (username, password))
         user = cursor.fetchone()
         
-        success = bool(user)
+        if not user:
+            cursor.close()
+            db.close()
+            return {"status": "FAIL", "message": "Invalid credentials"}
+        
+        if user["status"] == "pending":
+            cursor.close()
+            db.close()
+            return {"status": "FAIL", "message": "Account pending admin approval"}
+        
+        if user["status"] == "revoked":
+            cursor.close()
+            db.close()
+            return {"status": "FAIL", "message": "Access revoked by admin"}
+        
+        success = True
         ip = request.client.host if request.client else "Unknown"
         
-        # Get detailed geolocation
         geo = get_geolocation(ip)
         
-        # Log with accurate timestamp and location
         cursor.execute("""
             INSERT INTO login_logs (user_id, login_time, ip_address, success, country, city)
             VALUES (%s, NOW(), %s, %s, %s, %s)
         """, (username, geo["ip"], success, geo["country"], geo["city"]))
         db.commit()
         
-        # Add to blockchain audit trail
         blockchain.add_transaction({
             "type": "LOGIN",
             "user": username,
             "success": success,
             "ip": geo["ip"],
             "location": f"{geo['city']}, {geo['country']}",
+            "latitude": geo["latitude"],
+            "longitude": geo["longitude"],
             "timestamp": str(datetime.now())
         })
         
-        if not success:
-            cursor.close()
-            db.close()
-            return {"status": "FAIL", "message": "Invalid credentials"}
-        
-        # Calculate risk score using UEBA
         risk_data = calculate_risk_score(username, db)
         
         cursor.close()
@@ -254,6 +288,8 @@ async def login(request: Request, username: str = Form(...), password: str = For
             "user": username,
             "role": user["role"],
             "location": f"{geo['city']}, {geo['country']}",
+            "latitude": geo["latitude"],
+            "longitude": geo["longitude"],
             "timezone": geo["timezone"],
             "isp": geo["isp"],
             "risk_score": risk_data["risk_score"],
@@ -263,6 +299,77 @@ async def login(request: Request, username: str = Form(...), password: str = For
         }
     except Exception as e:
         return {"status": "FAIL", "error": str(e)}
+
+@app.post("/admin/approve-user")
+async def approve_user(username: str = Form(...), admin: str = Form(...), action: str = Form(...)):
+    try:
+        db = get_db()
+        cursor = db.cursor()
+        
+        cursor.execute("SELECT role FROM users WHERE username=%s", (admin,))
+        admin_user = cursor.fetchone()
+        if not admin_user or admin_user[0] != 'admin':
+            cursor.close()
+            db.close()
+            return {"status": "FAIL", "message": "Unauthorized"}
+        
+        if action == "approve":
+            cursor.execute("""
+                UPDATE users SET status='active', approved_by=%s, approved_at=NOW()
+                WHERE username=%s
+            """, (admin, username))
+        else:
+            cursor.execute("DELETE FROM users WHERE username=%s AND status='pending'", (username,))
+        
+        db.commit()
+        cursor.close()
+        db.close()
+        
+        return {"status": "SUCCESS", "message": f"User {action}d successfully"}
+    except Exception as e:
+        return {"status": "FAIL", "error": str(e)}
+
+@app.post("/admin/revoke-access")
+async def revoke_access(username: str = Form(...), admin: str = Form(...)):
+    try:
+        db = get_db()
+        cursor = db.cursor()
+        
+        cursor.execute("SELECT role FROM users WHERE username=%s", (admin,))
+        admin_user = cursor.fetchone()
+        if not admin_user or admin_user[0] != 'admin':
+            cursor.close()
+            db.close()
+            return {"status": "FAIL", "message": "Unauthorized"}
+        
+        if username in ['admin', 'bhargav']:
+            cursor.close()
+            db.close()
+            return {"status": "FAIL", "message": "Cannot revoke protected users"}
+        
+        cursor.execute("UPDATE users SET status='revoked' WHERE username=%s", (username,))
+        db.commit()
+        cursor.close()
+        db.close()
+        
+        return {"status": "SUCCESS", "message": "Access revoked"}
+    except Exception as e:
+        return {"status": "FAIL", "error": str(e)}
+
+@app.get("/admin/pending-users")
+def get_pending_users():
+    try:
+        db = get_db()
+        cursor = db.cursor(cursor_factory=__import__('psycopg2.extras', fromlist=['RealDictCursor']).RealDictCursor)
+        cursor.execute("""
+            SELECT username, created_at FROM users WHERE status='pending' ORDER BY created_at DESC
+        """)
+        users = cursor.fetchall()
+        cursor.close()
+        db.close()
+        return [{"username": u["username"], "created_at": str(u["created_at"])} for u in users]
+    except:
+        return []
 
 @app.get("/health")
 def health_check():
@@ -283,14 +390,14 @@ def admin_view():
             (SELECT mac_address FROM device_logs WHERE user_id=l.user_id ORDER BY first_seen DESC LIMIT 1) as mac_address,
             (SELECT wifi_ssid FROM device_logs WHERE user_id=l.user_id ORDER BY first_seen DESC LIMIT 1) as wifi_ssid,
             (SELECT hostname FROM device_logs WHERE user_id=l.user_id ORDER BY first_seen DESC LIMIT 1) as hostname,
-            (SELECT os FROM device_logs WHERE user_id=l.user_id ORDER BY first_seen DESC LIMIT 1) as os
+            (SELECT os FROM device_logs WHERE user_id=l.user_id ORDER BY first_seen DESC LIMIT 1) as os,
+            (SELECT status FROM users WHERE username=l.user_id) as status
             FROM login_logs l
         """)
         users = cursor.fetchall()
         
         result = []
         for u in users:
-            # Calculate real-time risk score
             risk_data = calculate_risk_score(u["user_id"], db)
             
             result.append({
@@ -308,7 +415,8 @@ def admin_view():
                 "mac_address": u["mac_address"] or "N/A",
                 "wifi_ssid": u["wifi_ssid"] or "N/A",
                 "hostname": u["hostname"] or "N/A",
-                "os": u["os"] or "N/A"
+                "os": u["os"] or "N/A",
+                "status": u["status"] or "active"
             })
         
         cursor.close()
@@ -373,13 +481,11 @@ async def register_device(request: Request):
         data = await request.json()
         ip = request.client.host if request.client else data.get("ip_address", "Unknown")
         
-        # Get real geolocation
         geo = get_geolocation(ip)
         
         db = get_db()
         cursor = db.cursor()
         
-        # Check if device exists, update if yes
         cursor.execute("""
             INSERT INTO device_logs (user_id, device_id, mac_address, os, wifi_ssid, hostname, ip_address, trusted, first_seen)
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s, NOW())
@@ -423,7 +529,6 @@ async def file_access(request: Request):
         cursor = db.cursor()
         ip = request.client.host if request.client else "Unknown"
         
-        # Insert with accurate timestamp
         cursor.execute("""
             INSERT INTO file_access_logs (user_id, file_name, action, ip_address, access_time)
             VALUES (%s,%s,%s,%s, NOW())
