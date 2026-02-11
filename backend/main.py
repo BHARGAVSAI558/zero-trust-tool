@@ -443,11 +443,11 @@ def admin_files():
         cursor.close()
         db.close()
         return [{
-            "user": f["user_id"], 
-            "file": f["file_name"], 
+            "user_id": f["user_id"], 
+            "file_name": f["file_name"], 
             "action": f["action"], 
-            "time": str(f["access_time"]), 
-            "ip": f["ip_address"]
+            "access_time": str(f["access_time"]), 
+            "ip_address": f["ip_address"]
         } for f in files]
     except:
         return []
