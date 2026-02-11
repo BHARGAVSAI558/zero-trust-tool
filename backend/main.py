@@ -278,6 +278,13 @@ async def login(request: Request, username: str = Form(...), password: str = For
             "timestamp": str(datetime.now())
         })
         
+        if len(blockchain.chain[-1]['data']) >= 3:
+            previous_block = blockchain.get_previous_block()
+            previous_proof = previous_block['proof']
+            proof = blockchain.proof_of_work(previous_proof)
+            previous_hash = blockchain.hash(previous_block)
+            blockchain.create_block(proof, previous_hash)
+        
         risk_data = calculate_risk_score(username, db)
         
         cursor.close()
